@@ -11,6 +11,8 @@ export function Invoices() {
   const [invoices, setInvoices] = useState<(Invoice & { customer: Customer })[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [menuItems, setMenuItems] = useState<any[]>([]);
+  const [itemType, setItemType] = useState<'product' | 'menu'>('product');
   const [companyProfile, setCompanyProfile] = useState<CompanyProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -22,7 +24,7 @@ export function Invoices() {
   const [barcodeInput, setBarcodeInput] = useState('');
   const [skuSearchMode, setSkuSearchMode] = useState(false);
   const [skuInput, setSkuInput] = useState('');
-  const [selectedItems, setSelectedItems] = useState<Array<{ product_id: string; quantity: number; custom_price?: number }>>([]);
+  const [selectedItems, setSelectedItems] = useState<Array<{ product_id?: string; menu_item_id?: string; quantity: number; custom_price?: number }>>([]);
   const [formData, setFormData] = useState({
     customer_id: '',
     due_date: '',
@@ -54,13 +56,14 @@ export function Invoices() {
 
   const loadData = async () => {
     try {
-      const [invoicesRes, customersRes, productsRes, companyRes] = await Promise.all([
+      const [invoicesRes, customersRes, productsRes, menuItemsRes, companyRes] = await Promise.all([
         supabase
           .from('invoices')
           .select('*, customer:customers(*)')
           .order('created_at', { ascending: false }),
         supabase.from('customers').select('*').order('name'),
         supabase.from('products').select('*').order('name'),
+        supabase.from('menu_items').select('*, category:menu_categories(name)').order('name'),
         supabase.from('company_profile').select('*').eq('user_id', user?.id || '').maybeSingle(),
       ]);
 
@@ -71,6 +74,7 @@ export function Invoices() {
       setInvoices(invoicesRes.data || []);
       setCustomers(customersRes.data || []);
       setProducts(productsRes.data || []);
+      setMenuItems(menuItemsRes.data || []);
       setCompanyProfile(companyRes.data);
     } catch (error) {
       console.error('Error loading data:', error);
@@ -106,23 +110,43 @@ export function Invoices() {
       let subtotal = 0;
 
       const items = selectedItems.map(item => {
-        const product = products.find(p => p.id === item.product_id);
-        if (!product) throw new Error('Product not found');
-        const unitPrice = item.custom_price !== undefined ? item.custom_price : product.selling_price;
+        let sourceItem, unitPrice, itemName, hsnCode, gstRate;
+
+        if (item.product_id) {
+          const product = products.find(p => p.id === item.product_id);
+          if (!product) throw new Error('Product not found');
+          unitPrice = item.custom_price !== undefined ? item.custom_price : product.selling_price;
+          itemName = product.name;
+          hsnCode = product.hsn_code || '';
+          gstRate = product.gst_rate || 18;
+        } else if (item.menu_item_id) {
+          const menuItem = menuItems.find(m => m.id === item.menu_item_id);
+          if (!menuItem) throw new Error('Menu item not found');
+          unitPrice = item.custom_price !== undefined ? item.custom_price : menuItem.price;
+          itemName = menuItem.name;
+          hsnCode = menuItem.hsn_code || '';
+          gstRate = menuItem.gst_rate || 5;
+        } else {
+          throw new Error('Item must have either product_id or menu_item_id');
+        }
+
         const itemTotal = unitPrice * item.quantity;
         subtotal += itemTotal;
 
         const isInterstate = companyProfile.state?.toLowerCase() !== customerState?.toLowerCase();
-        const gstCalc = calculateItemGST(itemTotal, product.gst_rate || 18, isInterstate);
+        const gstCalc = calculateItemGST(itemTotal, gstRate, isInterstate);
         totalGstAmount += (gstCalc.cgst_amount + gstCalc.sgst_amount + gstCalc.igst_amount);
 
         return {
-          product_id: item.product_id,
+          product_id: item.product_id || null,
+          menu_item_id: item.menu_item_id || null,
+          product_name: item.product_id ? itemName : null,
+          menu_item_name: item.menu_item_id ? itemName : null,
           quantity: item.quantity,
           unit_price: unitPrice,
           total: itemTotal,
-          hsn_code: product.hsn_code || '',
-          gst_rate: product.gst_rate || 18,
+          hsn_code: hsnCode,
+          gst_rate: gstRate,
           cgst_amount: gstCalc.cgst_amount,
           sgst_amount: gstCalc.sgst_amount,
           igst_amount: gstCalc.igst_amount,
@@ -546,11 +570,19 @@ export function Invoices() {
   };
 
   const addItem = () => {
-    if (products.length === 0) {
-      alert('Please add products first');
-      return;
+    if (itemType === 'product') {
+      if (products.length === 0) {
+        alert('Please add products first');
+        return;
+      }
+      setSelectedItems([...selectedItems, { product_id: products[0].id, quantity: 1 }]);
+    } else {
+      if (menuItems.length === 0) {
+        alert('Please add menu items first');
+        return;
+      }
+      setSelectedItems([...selectedItems, { menu_item_id: menuItems[0].id, quantity: 1 }]);
     }
-    setSelectedItems([...selectedItems, { product_id: products[0].id, quantity: 1 }]);
   };
 
   const handleCreateCustomer = async (e: React.FormEvent) => {
@@ -972,36 +1004,48 @@ export function Invoices() {
                 <div className="flex items-center justify-between mb-3">
                   <label className="block text-sm font-medium text-slate-700">Invoice Items</label>
                   <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setBarcodeScanMode(!barcodeScanMode);
-                        if (!barcodeScanMode) setSkuSearchMode(false);
-                      }}
-                      className={`px-3 py-1 text-sm font-medium rounded-lg transition flex items-center gap-2 ${
-                        barcodeScanMode
-                          ? 'bg-green-600 text-white hover:bg-green-700'
-                          : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
-                      }`}
+                    <select
+                      value={itemType}
+                      onChange={(e) => setItemType(e.target.value as 'product' | 'menu')}
+                      className="px-3 py-1 text-sm font-medium border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     >
-                      <Scan className="w-4 h-4" />
-                      {barcodeScanMode ? 'Scanning...' : 'Scan'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSkuSearchMode(!skuSearchMode);
-                        if (!skuSearchMode) setBarcodeScanMode(false);
-                      }}
-                      className={`px-3 py-1 text-sm font-medium rounded-lg transition flex items-center gap-2 ${
-                        skuSearchMode
-                          ? 'bg-blue-600 text-white hover:bg-blue-700'
-                          : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
-                      }`}
-                    >
-                      <Search className="w-4 h-4" />
-                      {skuSearchMode ? 'SKU Search' : 'SKU'}
-                    </button>
+                      <option value="product">Products</option>
+                      <option value="menu">Menu Items</option>
+                    </select>
+                    {itemType === 'product' && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setBarcodeScanMode(!barcodeScanMode);
+                            if (!barcodeScanMode) setSkuSearchMode(false);
+                          }}
+                          className={`px-3 py-1 text-sm font-medium rounded-lg transition flex items-center gap-2 ${
+                            barcodeScanMode
+                              ? 'bg-green-600 text-white hover:bg-green-700'
+                              : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+                          }`}
+                        >
+                          <Scan className="w-4 h-4" />
+                          {barcodeScanMode ? 'Scanning...' : 'Scan'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSkuSearchMode(!skuSearchMode);
+                            if (!skuSearchMode) setBarcodeScanMode(false);
+                          }}
+                          className={`px-3 py-1 text-sm font-medium rounded-lg transition flex items-center gap-2 ${
+                            skuSearchMode
+                              ? 'bg-blue-600 text-white hover:bg-blue-700'
+                              : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+                          }`}
+                        >
+                          <Search className="w-4 h-4" />
+                          {skuSearchMode ? 'SKU Search' : 'SKU'}
+                        </button>
+                      </>
+                    )}
                     <button
                       type="button"
                       onClick={addItem}
@@ -1043,21 +1087,31 @@ export function Invoices() {
                 )}
                 <div className="space-y-3">
                   {selectedItems.map((item, index) => {
-                    const product = products.find(p => p.id === item.product_id);
-                    const displayPrice = item.custom_price !== undefined ? item.custom_price : (product?.selling_price || 0);
+                    const isProduct = !!item.product_id;
+                    const product = isProduct ? products.find(p => p.id === item.product_id) : null;
+                    const menuItem = !isProduct ? menuItems.find(m => m.id === item.menu_item_id) : null;
+                    const displayPrice = item.custom_price !== undefined ? item.custom_price : (product?.selling_price || menuItem?.price || 0);
                     return (
                       <div key={index} className="bg-slate-50 p-4 rounded-lg border border-slate-200">
                         <div className="flex gap-3 items-start mb-3">
                           <select
-                            value={item.product_id}
-                            onChange={(e) => updateItem(index, 'product_id', e.target.value)}
+                            value={isProduct ? item.product_id : item.menu_item_id}
+                            onChange={(e) => updateItem(index, isProduct ? 'product_id' : 'menu_item_id', e.target.value)}
                             className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white"
                           >
-                            {products.map(product => (
-                              <option key={product.id} value={product.id}>
-                                {product.name} - {formatINR(product.selling_price)} (GST: {product.gst_rate}%)
-                              </option>
-                            ))}
+                            {isProduct ? (
+                              products.map(product => (
+                                <option key={product.id} value={product.id}>
+                                  {product.name} - {formatINR(product.selling_price)} (GST: {product.gst_rate}%)
+                                </option>
+                              ))
+                            ) : (
+                              menuItems.map(menuItem => (
+                                <option key={menuItem.id} value={menuItem.id}>
+                                  {menuItem.name} - {formatINR(menuItem.price)} (GST: {menuItem.gst_rate}%)
+                                </option>
+                              ))
+                            )}
                           </select>
                           <input
                             type="number"
@@ -1083,7 +1137,7 @@ export function Invoices() {
                             step="0.01"
                             value={item.custom_price !== undefined ? item.custom_price : ''}
                             onChange={(e) => updateItem(index, 'custom_price', e.target.value ? parseFloat(e.target.value) : undefined)}
-                            placeholder={`Default: ${formatINR(product?.selling_price || 0)}`}
+                            placeholder={`Default: ${formatINR(product?.selling_price || menuItem?.price || 0)}`}
                             className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white"
                           />
                           <span className="text-sm font-semibold text-slate-900 whitespace-nowrap min-w-[100px] text-right">
