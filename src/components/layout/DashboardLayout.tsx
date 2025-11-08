@@ -16,6 +16,7 @@ import {
   Truck,
   User,
   UtensilsCrossed,
+  ClipboardList,
 } from 'lucide-react';
 
 interface DashboardLayoutProps {
@@ -33,6 +34,7 @@ const navItems: NavItem[] = [
   { name: 'Dashboard', icon: LayoutDashboard, path: 'dashboard', roles: ['admin', 'sales_person', 'inventory_person', 'purchase_person'] },
   { name: 'Inventory', icon: Package, path: 'inventory', roles: ['admin', 'inventory_person'] },
   { name: 'Menu', icon: UtensilsCrossed, path: 'menu', roles: ['admin', 'inventory_person'] },
+  { name: 'KOT', icon: ClipboardList, path: 'kot', roles: ['admin', 'sales_person'] },
   { name: 'Invoices', icon: FileText, path: 'invoices', roles: ['admin', 'sales_person'] },
   { name: 'Payment Receivables', icon: Receipt, path: 'receivables', roles: ['admin', 'sales_person'] },
   { name: 'Customers', icon: Users, path: 'customers', roles: ['admin', 'sales_person'] },
