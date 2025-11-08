@@ -397,7 +397,7 @@ export function Invoices() {
                 <tbody>
                   ${items.map((item: any) => `
                     <tr>
-                      <td style="font-weight: 500;">${item.product?.name || ''}</td>
+                      <td style="font-weight: 500;">${item.menu_item_name || item.product_name || item.product?.name || 'N/A'}</td>
                       <td style="text-align: center; color: #64748b;">${item.hsn_code || '-'}</td>
                       <td style="text-align: center;">${item.quantity}</td>
                       <td style="text-align: right;">₹${item.unit_price.toFixed(2)}</td>

@@ -360,7 +360,7 @@ export function InvoiceView({ invoiceId, onClose }: InvoiceViewProps) {
                       {items.map((item: any, index: number) => (
                         <tr key={item.id}>
                           <td className="py-1 px-2 text-center text-base" style={{ border: '1px solid #000', boxShadow: 'inset 0 0 0 1px #000' }}>{index + 1}</td>
-                          <td className="py-1 px-3 text-base" style={{ border: '1px solid #000', boxShadow: 'inset 0 0 0 1px #000' }}>{item.product?.description || item.product?.name}</td>
+                          <td className="py-1 px-3 text-base" style={{ border: '1px solid #000', boxShadow: 'inset 0 0 0 1px #000' }}>{item.menu_item_name || item.product_name || item.product?.description || item.product?.name || 'N/A'}</td>
                           <td className="py-1 px-2 text-center text-base" style={{ border: '1px solid #000', boxShadow: 'inset 0 0 0 1px #000' }}>{item.quantity}</td>
                           <td className="py-1 px-2 text-right text-base" style={{ border: '1px solid #000', boxShadow: 'inset 0 0 0 1px #000' }}>{item.unit_price}</td>
                           <td className="py-1 px-2 text-right text-base" style={{ border: '1px solid #000', boxShadow: 'inset 0 0 0 1px #000' }}>{(item.quantity * item.unit_price).toFixed(2)}</td>
@@ -471,7 +471,7 @@ export function InvoiceView({ invoiceId, onClose }: InvoiceViewProps) {
                   <tbody>
                     {items.map((item: any) => (
                       <tr key={item.id} className="border-b border-dashed border-slate-300">
-                        <td className="py-1">{item.product?.description || item.product?.name}</td>
+                        <td className="py-1">{item.menu_item_name || item.product_name || item.product?.description || item.product?.name || 'N/A'}</td>
                         <td className="text-center py-1">{item.quantity}</td>
                         <td className="text-right py-1">{formatINR(item.total)}</td>
                       </tr>
