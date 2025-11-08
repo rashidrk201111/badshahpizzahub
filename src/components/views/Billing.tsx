@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Plus, Trash2, Eye, Receipt } from 'lucide-react';
+import { Plus, Trash2, Eye, Receipt, Printer, Edit2 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatINR } from '../../lib/currency';
 
@@ -37,6 +37,7 @@ export function Billing() {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [editingBill, setEditingBill] = useState<Bill | null>(null);
   const [selectedItems, setSelectedItems] = useState<BillItem[]>([]);
   const [formData, setFormData] = useState({
     customer_name: '',
@@ -135,45 +136,86 @@ export function Billing() {
 
     try {
       const { subtotal, taxAmount, total } = calculateTotals();
-      const billNumber = generateBillNumber();
 
-      const { data: bill, error: billError } = await supabase
-        .from('bills')
-        .insert({
-          user_id: user?.id,
-          bill_number: billNumber,
-          customer_name: formData.customer_name,
-          customer_phone: formData.customer_phone,
-          subtotal,
-          tax_amount: taxAmount,
-          total_amount: total,
-          payment_status: formData.payment_status,
-          payment_method: formData.payment_method,
-          notes: formData.notes,
-        })
-        .select()
-        .single();
+      if (editingBill) {
+        const { error: billError } = await supabase
+          .from('bills')
+          .update({
+            customer_name: formData.customer_name,
+            customer_phone: formData.customer_phone,
+            subtotal,
+            tax_amount: taxAmount,
+            total_amount: total,
+            payment_status: formData.payment_status,
+            payment_method: formData.payment_method,
+            notes: formData.notes,
+          })
+          .eq('id', editingBill.id);
 
-      if (billError) throw billError;
+        if (billError) throw billError;
 
-      const billItems = selectedItems.map((item) => {
-        const menuItem = menuItems.find((m) => m.id === item.menu_item_id);
-        return {
-          bill_id: bill.id,
-          menu_item_id: item.menu_item_id,
-          menu_item_name: menuItem?.name || '',
-          quantity: item.quantity,
-          unit_price: item.unit_price,
-          total: item.quantity * item.unit_price,
-        };
-      });
+        await supabase.from('bill_items').delete().eq('bill_id', editingBill.id);
 
-      const { error: itemsError } = await supabase.from('bill_items').insert(billItems);
+        const billItems = selectedItems.map((item) => {
+          const menuItem = menuItems.find((m) => m.id === item.menu_item_id);
+          return {
+            bill_id: editingBill.id,
+            menu_item_id: item.menu_item_id,
+            menu_item_name: menuItem?.name || '',
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+            total: item.quantity * item.unit_price,
+          };
+        });
 
-      if (itemsError) throw itemsError;
+        const { error: itemsError } = await supabase.from('bill_items').insert(billItems);
 
-      alert('Bill created successfully!');
+        if (itemsError) throw itemsError;
+
+        alert('Bill updated successfully!');
+      } else {
+        const billNumber = generateBillNumber();
+
+        const { data: bill, error: billError } = await supabase
+          .from('bills')
+          .insert({
+            user_id: user?.id,
+            bill_number: billNumber,
+            customer_name: formData.customer_name,
+            customer_phone: formData.customer_phone,
+            subtotal,
+            tax_amount: taxAmount,
+            total_amount: total,
+            payment_status: formData.payment_status,
+            payment_method: formData.payment_method,
+            notes: formData.notes,
+          })
+          .select()
+          .single();
+
+        if (billError) throw billError;
+
+        const billItems = selectedItems.map((item) => {
+          const menuItem = menuItems.find((m) => m.id === item.menu_item_id);
+          return {
+            bill_id: bill.id,
+            menu_item_id: item.menu_item_id,
+            menu_item_name: menuItem?.name || '',
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+            total: item.quantity * item.unit_price,
+          };
+        });
+
+        const { error: itemsError } = await supabase.from('bill_items').insert(billItems);
+
+        if (itemsError) throw itemsError;
+
+        alert('Bill created successfully!');
+      }
+
       setShowModal(false);
+      setEditingBill(null);
       setFormData({
         customer_name: '',
         customer_phone: '',
@@ -184,8 +226,170 @@ export function Billing() {
       setSelectedItems([]);
       loadData();
     } catch (error) {
-      console.error('Error creating bill:', error);
-      alert('Error creating bill');
+      console.error('Error saving bill:', error);
+      alert('Error saving bill');
+    }
+  };
+
+  const handleEditBill = async (bill: Bill) => {
+    try {
+      const { data: billItems, error } = await supabase
+        .from('bill_items')
+        .select('*')
+        .eq('bill_id', bill.id);
+
+      if (error) throw error;
+
+      setEditingBill(bill);
+      setFormData({
+        customer_name: bill.customer_name || '',
+        customer_phone: bill.customer_phone || '',
+        payment_method: bill.payment_method,
+        payment_status: bill.payment_status,
+        notes: bill.notes || '',
+      });
+      setSelectedItems(
+        billItems.map((item: any) => ({
+          menu_item_id: item.menu_item_id,
+          menu_item_name: item.menu_item_name,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+        }))
+      );
+      setShowModal(true);
+    } catch (error) {
+      console.error('Error loading bill for edit:', error);
+      alert('Error loading bill');
+    }
+  };
+
+  const handlePrintBill = async (bill: Bill) => {
+    try {
+      const { data: billItems, error } = await supabase
+        .from('bill_items')
+        .select('*')
+        .eq('bill_id', bill.id);
+
+      if (error) throw error;
+
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return;
+
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Bill - ${bill.bill_number}</title>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              padding: 20px;
+              max-width: 800px;
+              margin: 0 auto;
+            }
+            .header {
+              text-align: center;
+              margin-bottom: 30px;
+              border-bottom: 2px solid #333;
+              padding-bottom: 20px;
+            }
+            .bill-info {
+              display: flex;
+              justify-content: space-between;
+              margin-bottom: 20px;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-bottom: 20px;
+            }
+            th, td {
+              padding: 10px;
+              text-align: left;
+              border-bottom: 1px solid #ddd;
+            }
+            th {
+              background-color: #f5f5f5;
+              font-weight: bold;
+            }
+            .totals {
+              text-align: right;
+              margin-top: 20px;
+            }
+            .totals div {
+              margin: 5px 0;
+            }
+            .total {
+              font-size: 18px;
+              font-weight: bold;
+              margin-top: 10px;
+              padding-top: 10px;
+              border-top: 2px solid #333;
+            }
+            @media print {
+              body { padding: 0; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>BILL</h1>
+            <h2>${bill.bill_number}</h2>
+          </div>
+          <div class="bill-info">
+            <div>
+              <strong>Date:</strong> ${new Date(bill.bill_date).toLocaleDateString()}<br>
+              <strong>Customer:</strong> ${bill.customer_name || 'Walk-in Customer'}<br>
+              <strong>Phone:</strong> ${bill.customer_phone || '-'}
+            </div>
+            <div>
+              <strong>Payment Method:</strong> ${bill.payment_method.toUpperCase()}<br>
+              <strong>Payment Status:</strong> ${bill.payment_status.toUpperCase()}
+            </div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th>Quantity</th>
+                <th>Unit Price</th>
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${billItems
+                .map(
+                  (item: any) => `
+                <tr>
+                  <td>${item.menu_item_name}</td>
+                  <td>${item.quantity}</td>
+                  <td>${formatINR(item.unit_price)}</td>
+                  <td>${formatINR(item.total)}</td>
+                </tr>
+              `
+                )
+                .join('')}
+            </tbody>
+          </table>
+          <div class="totals">
+            <div><strong>Subtotal:</strong> ${formatINR(bill.subtotal)}</div>
+            <div><strong>Tax (5%):</strong> ${formatINR(bill.tax_amount)}</div>
+            <div class="total"><strong>Total:</strong> ${formatINR(bill.total_amount)}</div>
+          </div>
+          ${bill.notes ? `<div style="margin-top: 30px;"><strong>Notes:</strong> ${bill.notes}</div>` : ''}
+          <script>
+            window.onload = function() {
+              window.print();
+            }
+          </script>
+        </body>
+        </html>
+      `);
+
+      printWindow.document.close();
+    } catch (error) {
+      console.error('Error printing bill:', error);
+      alert('Error printing bill');
     }
   };
 
@@ -234,12 +438,15 @@ export function Billing() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">
                   Status
                 </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase">
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
               {bills.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center text-slate-500">
+                  <td colSpan={8} className="px-6 py-8 text-center text-slate-500">
                     No bills yet. Create your first bill to get started.
                   </td>
                 </tr>
@@ -275,6 +482,24 @@ export function Billing() {
                         {bill.payment_status}
                       </span>
                     </td>
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => handleEditBill(bill)}
+                          className="p-2 text-blue-600 hover:bg-blue-50 rounded transition"
+                          title="Edit Bill"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handlePrintBill(bill)}
+                          className="p-2 text-green-600 hover:bg-green-50 rounded transition"
+                          title="Print Bill"
+                        >
+                          <Printer className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))
               )}
@@ -287,7 +512,9 @@ export function Billing() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b border-slate-200 sticky top-0 bg-white">
-              <h2 className="text-xl font-bold text-slate-800">Create New Bill</h2>
+              <h2 className="text-xl font-bold text-slate-800">
+                {editingBill ? 'Edit Bill' : 'Create New Bill'}
+              </h2>
             </div>
 
             <form onSubmit={handleSubmit} className="p-6">
@@ -466,12 +693,13 @@ export function Billing() {
                   type="submit"
                   className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition"
                 >
-                  Create Bill
+                  {editingBill ? 'Update Bill' : 'Create Bill'}
                 </button>
                 <button
                   type="button"
                   onClick={() => {
                     setShowModal(false);
+                    setEditingBill(null);
                     setFormData({
                       customer_name: '',
                       customer_phone: '',
