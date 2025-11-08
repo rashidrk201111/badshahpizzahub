@@ -281,102 +281,156 @@ export function Billing() {
         <head>
           <title>Bill - ${bill.bill_number}</title>
           <style>
+            * {
+              margin: 0;
+              padding: 0;
+              box-sizing: border-box;
+            }
             body {
-              font-family: Arial, sans-serif;
-              padding: 20px;
-              max-width: 800px;
-              margin: 0 auto;
+              font-family: 'Courier New', monospace;
+              width: 80mm;
+              padding: 5mm;
+              font-size: 12px;
+              line-height: 1.4;
+            }
+            .center {
+              text-align: center;
+            }
+            .bold {
+              font-weight: bold;
             }
             .header {
               text-align: center;
-              margin-bottom: 30px;
-              border-bottom: 2px solid #333;
-              padding-bottom: 20px;
+              margin-bottom: 10px;
+              padding-bottom: 10px;
+              border-bottom: 1px dashed #000;
             }
-            .bill-info {
+            .header h1 {
+              font-size: 18px;
+              margin-bottom: 5px;
+            }
+            .header h2 {
+              font-size: 14px;
+              margin-bottom: 3px;
+            }
+            .info {
+              margin-bottom: 10px;
+              padding-bottom: 10px;
+              border-bottom: 1px dashed #000;
+              font-size: 11px;
+            }
+            .info div {
+              margin-bottom: 2px;
+            }
+            .items {
+              margin-bottom: 10px;
+              padding-bottom: 10px;
+              border-bottom: 1px dashed #000;
+            }
+            .item {
+              margin-bottom: 8px;
+            }
+            .item-name {
+              font-weight: bold;
+              margin-bottom: 2px;
+            }
+            .item-details {
               display: flex;
               justify-content: space-between;
-              margin-bottom: 20px;
-            }
-            table {
-              width: 100%;
-              border-collapse: collapse;
-              margin-bottom: 20px;
-            }
-            th, td {
-              padding: 10px;
-              text-align: left;
-              border-bottom: 1px solid #ddd;
-            }
-            th {
-              background-color: #f5f5f5;
-              font-weight: bold;
+              font-size: 11px;
             }
             .totals {
-              text-align: right;
-              margin-top: 20px;
+              margin-bottom: 10px;
             }
             .totals div {
-              margin: 5px 0;
+              display: flex;
+              justify-content: space-between;
+              margin-bottom: 3px;
             }
-            .total {
-              font-size: 18px;
+            .grand-total {
+              font-size: 14px;
               font-weight: bold;
-              margin-top: 10px;
+              padding-top: 5px;
+              border-top: 1px solid #000;
+              margin-top: 5px;
+            }
+            .footer {
+              text-align: center;
+              margin-top: 15px;
               padding-top: 10px;
-              border-top: 2px solid #333;
+              border-top: 1px dashed #000;
+              font-size: 11px;
             }
             @media print {
-              body { padding: 0; }
+              body {
+                width: 80mm;
+                margin: 0;
+                padding: 5mm;
+              }
+              @page {
+                size: 80mm auto;
+                margin: 0;
+              }
             }
           </style>
         </head>
         <body>
           <div class="header">
-            <h1>BILL</h1>
+            <h1>BILL RECEIPT</h1>
             <h2>${bill.bill_number}</h2>
+            <div>${new Date(bill.bill_date).toLocaleDateString('en-IN', {
+              day: '2-digit',
+              month: '2-digit',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit'
+            })}</div>
           </div>
-          <div class="bill-info">
-            <div>
-              <strong>Date:</strong> ${new Date(bill.bill_date).toLocaleDateString()}<br>
-              <strong>Customer:</strong> ${bill.customer_name || 'Walk-in Customer'}<br>
-              <strong>Phone:</strong> ${bill.customer_phone || '-'}
-            </div>
-            <div>
-              <strong>Payment Method:</strong> ${bill.payment_method.toUpperCase()}<br>
-              <strong>Payment Status:</strong> ${bill.payment_status.toUpperCase()}
-            </div>
+
+          <div class="info">
+            ${bill.customer_name ? `<div><strong>Customer:</strong> ${bill.customer_name}</div>` : ''}
+            ${bill.customer_phone ? `<div><strong>Phone:</strong> ${bill.customer_phone}</div>` : ''}
+            <div><strong>Payment:</strong> ${bill.payment_method.toUpperCase()}</div>
           </div>
-          <table>
-            <thead>
-              <tr>
-                <th>Item</th>
-                <th>Quantity</th>
-                <th>Unit Price</th>
-                <th>Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${billItems
-                .map(
-                  (item: any) => `
-                <tr>
-                  <td>${item.menu_item_name}</td>
-                  <td>${item.quantity}</td>
-                  <td>${formatINR(item.unit_price)}</td>
-                  <td>${formatINR(item.total)}</td>
-                </tr>
-              `
-                )
-                .join('')}
-            </tbody>
-          </table>
+
+          <div class="items">
+            ${billItems
+              .map(
+                (item: any) => `
+              <div class="item">
+                <div class="item-name">${item.menu_item_name}</div>
+                <div class="item-details">
+                  <span>${item.quantity} x ${formatINR(item.unit_price)}</span>
+                  <span>${formatINR(item.total)}</span>
+                </div>
+              </div>
+            `
+              )
+              .join('')}
+          </div>
+
           <div class="totals">
-            <div><strong>Subtotal:</strong> ${formatINR(bill.subtotal)}</div>
-            <div><strong>Tax (5%):</strong> ${formatINR(bill.tax_amount)}</div>
-            <div class="total"><strong>Total:</strong> ${formatINR(bill.total_amount)}</div>
+            <div>
+              <span>Subtotal:</span>
+              <span>${formatINR(bill.subtotal)}</span>
+            </div>
+            <div>
+              <span>Tax (5%):</span>
+              <span>${formatINR(bill.tax_amount)}</span>
+            </div>
+            <div class="grand-total">
+              <span>TOTAL:</span>
+              <span>${formatINR(bill.total_amount)}</span>
+            </div>
           </div>
-          ${bill.notes ? `<div style="margin-top: 30px;"><strong>Notes:</strong> ${bill.notes}</div>` : ''}
+
+          ${bill.notes ? `<div style="margin-top: 10px; font-size: 11px; border-top: 1px dashed #000; padding-top: 10px;"><strong>Notes:</strong> ${bill.notes}</div>` : ''}
+
+          <div class="footer">
+            <div>Thank you for your visit!</div>
+            <div>Please visit again</div>
+          </div>
+
           <script>
             window.onload = function() {
               window.print();
