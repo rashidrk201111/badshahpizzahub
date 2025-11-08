@@ -62,7 +62,7 @@ export function Invoices() {
           .order('created_at', { ascending: false }),
         supabase.from('customers').select('*').order('name'),
         supabase.from('products').select('*').order('name'),
-        supabase.from('menu_items').select('*, category:menu_categories(name)').order('name'),
+        supabase.from('menu_items').select('*, category:menu_categories(name)').eq('is_active', true).eq('is_available', true).order('name'),
         supabase.from('company_profile').select('*').eq('user_id', user?.id || '').maybeSingle(),
       ]);
 
@@ -998,11 +998,15 @@ export function Invoices() {
                             onChange={(e) => updateItem(index, 'menu_item_id', e.target.value)}
                             className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white"
                           >
-                            {menuItems.map(menuItem => (
-                              <option key={menuItem.id} value={menuItem.id}>
-                                {menuItem.name} - {formatINR(menuItem.price)} (GST: {menuItem.gst_rate}%)
-                              </option>
-                            ))}
+                            {menuItems.length === 0 ? (
+                              <option value="">No menu items available</option>
+                            ) : (
+                              menuItems.map(menuItem => (
+                                <option key={menuItem.id} value={menuItem.id}>
+                                  {menuItem.name} {menuItem.category?.name ? `(${menuItem.category.name})` : ''} - {formatINR(menuItem.price)}
+                                </option>
+                              ))
+                            )}
                           </select>
                           <input
                             type="number"
