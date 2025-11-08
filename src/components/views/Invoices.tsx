@@ -69,7 +69,12 @@ export function Invoices() {
       if (invoicesRes.error) throw invoicesRes.error;
       if (customersRes.error) throw customersRes.error;
       if (productsRes.error) throw productsRes.error;
+      if (menuItemsRes.error) {
+        console.error('Menu items error:', menuItemsRes.error);
+        throw menuItemsRes.error;
+      }
 
+      console.log('Loaded menu items:', menuItemsRes.data);
       setInvoices(invoicesRes.data || []);
       setCustomers(customersRes.data || []);
       setProducts(productsRes.data || []);
@@ -990,6 +995,7 @@ export function Invoices() {
                   {selectedItems.map((item, index) => {
                     const menuItem = menuItems.find(m => m.id === item.menu_item_id);
                     const displayPrice = item.custom_price !== undefined ? item.custom_price : (menuItem?.price || 0);
+                    console.log('Rendering item dropdown, menuItems count:', menuItems.length, 'menuItems:', menuItems);
                     return (
                       <div key={index} className="bg-slate-50 p-4 rounded-lg border border-slate-200">
                         <div className="flex gap-3 items-start mb-3">
