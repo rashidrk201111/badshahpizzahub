@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Plus, Search, Trash2, Edit2, Printer, Clock, CheckCircle, XCircle, Utensils, Truck, ShoppingBag } from 'lucide-react';
+import { Plus, Search, Trash2, Edit2, Printer, Clock, CheckCircle, XCircle, Utensils, Truck, ShoppingBag, Eye } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatINR } from '../../lib/currency';
 
@@ -547,6 +547,276 @@ export function KOT() {
     }
   };
 
+  const handleViewReceipt = async (kot: KOT) => {
+    try {
+      const { data: items, error: itemsError } = await supabase
+        .from('kot_items')
+        .select('*')
+        .eq('kot_id', kot.id);
+
+      if (itemsError) throw itemsError;
+
+      const { data: companyProfile, error: profileError } = await supabase
+        .from('company_profile')
+        .select('*')
+        .maybeSingle();
+
+      if (profileError) throw profileError;
+
+      const subtotal = items.reduce((sum: number, item: any) =>
+        sum + (parseFloat(item.quantity) * parseFloat(item.unit_price)), 0
+      );
+      const taxRate = 0.05;
+      const tax = subtotal * taxRate;
+      const total = subtotal + tax;
+
+      const orderTypeIcons = {
+        dine_in: '🍽️',
+        delivery: '🚚',
+        take_away: '🛍️'
+      };
+
+      const orderTypeLabels = {
+        dine_in: 'DINE IN',
+        delivery: 'DELIVERY',
+        take_away: 'TAKE AWAY'
+      };
+
+      const orderTypeColors = {
+        dine_in: '#10b981',
+        delivery: '#f59e0b',
+        take_away: '#3b82f6'
+      };
+
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return;
+
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Order Receipt - ${kot.kot_number}</title>
+          <style>
+            * {
+              margin: 0;
+              padding: 0;
+              box-sizing: border-box;
+            }
+            body {
+              font-family: 'Courier New', monospace;
+              width: 80mm;
+              padding: 5mm;
+              font-size: 12px;
+              line-height: 1.4;
+            }
+            .header {
+              text-align: center;
+              margin-bottom: 10px;
+              padding-bottom: 10px;
+              border-bottom: 2px solid #000;
+            }
+            .header h1 {
+              font-size: 18px;
+              margin-bottom: 5px;
+            }
+            .company-info {
+              text-align: center;
+              font-size: 10px;
+              margin-bottom: 5px;
+            }
+            .order-type-badge {
+              display: inline-block;
+              padding: 6px 12px;
+              margin: 8px 0;
+              border-radius: 4px;
+              font-weight: bold;
+              font-size: 14px;
+              color: white;
+              background-color: ${orderTypeColors[kot.order_type]};
+            }
+            .info {
+              margin-bottom: 10px;
+              padding-bottom: 10px;
+              border-bottom: 1px dashed #000;
+              font-size: 11px;
+            }
+            .info div {
+              margin-bottom: 3px;
+            }
+            .info-label {
+              font-weight: bold;
+              display: inline-block;
+              width: 80px;
+            }
+            .items-table {
+              width: 100%;
+              margin-bottom: 10px;
+              border-collapse: collapse;
+            }
+            .items-table th {
+              text-align: left;
+              padding: 5px 0;
+              border-bottom: 1px solid #000;
+              font-size: 11px;
+            }
+            .items-table td {
+              padding: 5px 0;
+              border-bottom: 1px dashed #ddd;
+              font-size: 11px;
+            }
+            .items-table .item-name {
+              font-weight: bold;
+            }
+            .items-table .qty {
+              text-align: center;
+              width: 30px;
+            }
+            .items-table .price {
+              text-align: right;
+              width: 60px;
+            }
+            .totals {
+              margin-top: 10px;
+              padding-top: 10px;
+              border-top: 1px solid #000;
+            }
+            .totals div {
+              display: flex;
+              justify-content: space-between;
+              margin-bottom: 5px;
+              font-size: 11px;
+            }
+            .totals .grand-total {
+              font-size: 14px;
+              font-weight: bold;
+              padding-top: 5px;
+              border-top: 2px solid #000;
+            }
+            .footer {
+              text-align: center;
+              margin-top: 15px;
+              padding-top: 10px;
+              border-top: 1px dashed #000;
+              font-size: 11px;
+            }
+            .footer .thank-you {
+              font-weight: bold;
+              font-size: 14px;
+              margin-bottom: 5px;
+            }
+            .timestamp {
+              text-align: center;
+              font-size: 10px;
+              margin-top: 10px;
+              color: #666;
+            }
+            @media print {
+              body {
+                width: 80mm;
+                margin: 0;
+                padding: 5mm;
+              }
+              @page {
+                size: 80mm auto;
+                margin: 0;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>${companyProfile?.company_name || 'Restaurant'}</h1>
+            ${companyProfile ? `
+              <div class="company-info">
+                ${companyProfile.address_line1 ? `<div>${companyProfile.address_line1}</div>` : ''}
+                ${companyProfile.phone ? `<div>Tel: ${companyProfile.phone}</div>` : ''}
+                ${companyProfile.gst_number ? `<div>GST: ${companyProfile.gst_number}</div>` : ''}
+              </div>
+            ` : ''}
+            <div style="font-size: 16px; font-weight: bold; margin-top: 8px;">ORDER RECEIPT</div>
+            <div class="order-type-badge">
+              ${orderTypeIcons[kot.order_type]} ${orderTypeLabels[kot.order_type]}
+            </div>
+          </div>
+
+          <div class="info">
+            <div><span class="info-label">Order:</span> ${kot.kot_number}</div>
+            <div><span class="info-label">Date:</span> ${new Date(kot.created_at).toLocaleDateString('en-IN')}</div>
+            <div><span class="info-label">Time:</span> ${new Date(kot.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</div>
+            ${kot.order_type === 'dine_in' ? `<div><span class="info-label">Table:</span> ${kot.table_number}</div>` : ''}
+            ${kot.customer_name ? `<div><span class="info-label">Customer:</span> ${kot.customer_name}</div>` : ''}
+            ${kot.customer_phone ? `<div><span class="info-label">Phone:</span> ${kot.customer_phone}</div>` : ''}
+            ${kot.delivery_platform ? `<div><span class="info-label">Platform:</span> ${kot.delivery_platform}</div>` : ''}
+            ${kot.delivery_order_id ? `<div><span class="info-label">Order ID:</span> ${kot.delivery_order_id}</div>` : ''}
+          </div>
+
+          <table class="items-table">
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th class="qty">Qty</th>
+                <th class="price">Price</th>
+                <th class="price">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${items.map((item: any) => `
+                <tr>
+                  <td class="item-name">${item.menu_item_name}</td>
+                  <td class="qty">${item.quantity}</td>
+                  <td class="price">₹${parseFloat(item.unit_price).toFixed(2)}</td>
+                  <td class="price">₹${(parseFloat(item.quantity) * parseFloat(item.unit_price)).toFixed(2)}</td>
+                </tr>
+                ${item.notes ? `
+                  <tr>
+                    <td colspan="4" style="font-size: 10px; font-style: italic; padding-left: 10px;">Note: ${item.notes}</td>
+                  </tr>
+                ` : ''}
+              `).join('')}
+            </tbody>
+          </table>
+
+          <div class="totals">
+            <div>
+              <span>Subtotal:</span>
+              <span>₹${subtotal.toFixed(2)}</span>
+            </div>
+            <div>
+              <span>Tax (5%):</span>
+              <span>₹${tax.toFixed(2)}</span>
+            </div>
+            <div class="grand-total">
+              <span>TOTAL:</span>
+              <span>₹${total.toFixed(2)}</span>
+            </div>
+          </div>
+
+          <div class="footer">
+            <div class="thank-you">Thank You!</div>
+            <div>Please visit again</div>
+            ${companyProfile?.website ? `<div>${companyProfile.website}</div>` : ''}
+          </div>
+
+          <div class="timestamp">
+            Printed: ${new Date().toLocaleString('en-IN')}
+          </div>
+
+          <script>
+            window.onload = function() {
+              window.print();
+            }
+          </script>
+        </body>
+        </html>
+      `);
+
+      printWindow.document.close();
+    } catch (error) {
+      console.error('Error viewing receipt:', error);
+      alert('Error viewing receipt');
+    }
+  };
+
   const resetForm = () => {
     setFormData({
       order_type: 'dine_in',
@@ -708,6 +978,13 @@ export function KOT() {
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex gap-2 justify-end">
+                      <button
+                        onClick={() => handleViewReceipt(kot)}
+                        className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition"
+                        title="View Order Receipt"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
                       <button
                         onClick={() => handlePrintKOT(kot)}
                         className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition"
