@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Plus, Search, Trash2, Receipt, Clock, CheckCircle, AlertCircle, IndianRupee, ChevronDown, ChevronRight } from 'lucide-react';
+import { Plus, Search, Trash2, Receipt, Clock, CheckCircle, AlertCircle, IndianRupee, ChevronDown, ChevronRight, Printer } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatINR } from '../../lib/currency';
 import { calculateItemGST } from '../../lib/gst';
@@ -481,6 +481,117 @@ export function Purchases() {
     setExpandedRows(newExpanded);
   };
 
+  const handlePrintPO = (purchase: any) => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const items = purchase.items || [];
+    const supplier = purchase.supplier;
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Purchase Order - ${purchase.purchase_number}</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 20px; }
+            h1 { text-align: center; margin-bottom: 20px; }
+            .header { margin-bottom: 30px; }
+            .info-section { margin-bottom: 20px; }
+            .info-label { font-weight: bold; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th, td { border: 1px solid #000; padding: 8px; text-align: left; }
+            th { background-color: #f0f0f0; }
+            .text-right { text-align: right; }
+            .text-center { text-align: center; }
+            .total-row { font-weight: bold; background-color: #f9f9f9; }
+            @media print {
+              button { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <button onclick="window.print()" style="padding: 10px 20px; margin-bottom: 20px; cursor: pointer;">Print</button>
+
+          <h1>PURCHASE ORDER</h1>
+
+          <div class="header">
+            <div class="info-section">
+              <div><span class="info-label">PO Number:</span> ${purchase.purchase_number}</div>
+              <div><span class="info-label">Order Date:</span> ${new Date(purchase.order_date).toLocaleDateString('en-IN')}</div>
+              ${purchase.expected_date ? `<div><span class="info-label">Expected Date:</span> ${new Date(purchase.expected_date).toLocaleDateString('en-IN')}</div>` : ''}
+            </div>
+
+            <div class="info-section">
+              <div><span class="info-label">Supplier:</span> ${supplier?.name || 'N/A'}</div>
+            </div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Sr. No.</th>
+                <th>Product Name</th>
+                <th>SKU</th>
+                <th class="text-center">Quantity</th>
+                <th class="text-right">Unit Price</th>
+                <th class="text-center">GST %</th>
+                <th class="text-right">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${items.map((item: any, index: number) => `
+                <tr>
+                  <td class="text-center">${index + 1}</td>
+                  <td>${item.product_name}</td>
+                  <td>${item.sku}</td>
+                  <td class="text-center">${item.quantity} ${item.unit}</td>
+                  <td class="text-right">${formatINR(item.unit_price)}</td>
+                  <td class="text-center">${item.gst_rate}%</td>
+                  <td class="text-right">${formatINR(item.total)}</td>
+                </tr>
+              `).join('')}
+              <tr class="total-row">
+                <td colspan="6" class="text-right">Subtotal:</td>
+                <td class="text-right">${formatINR(purchase.subtotal)}</td>
+              </tr>
+              ${purchase.cgst > 0 ? `
+                <tr>
+                  <td colspan="6" class="text-right">CGST:</td>
+                  <td class="text-right">${formatINR(purchase.cgst)}</td>
+                </tr>
+                <tr>
+                  <td colspan="6" class="text-right">SGST:</td>
+                  <td class="text-right">${formatINR(purchase.sgst)}</td>
+                </tr>
+              ` : ''}
+              ${purchase.igst > 0 ? `
+                <tr>
+                  <td colspan="6" class="text-right">IGST:</td>
+                  <td class="text-right">${formatINR(purchase.igst)}</td>
+                </tr>
+              ` : ''}
+              <tr class="total-row">
+                <td colspan="6" class="text-right">Grand Total:</td>
+                <td class="text-right">${formatINR(purchase.total)}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          ${purchase.notes ? `
+            <div style="margin-top: 30px;">
+              <div class="info-label">Notes:</div>
+              <div>${purchase.notes}</div>
+            </div>
+          ` : ''}
+        </body>
+      </html>
+    `;
+
+    printWindow.document.write(html);
+    printWindow.document.close();
+  };
+
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this purchase?')) return;
 
@@ -782,6 +893,13 @@ export function Purchases() {
                         )}
                         <td className="px-4 py-3 text-right">
                           <div className="flex gap-2 justify-end">
+                            <button
+                              onClick={() => handlePrintPO(purchase)}
+                              className="p-2 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                              title="Print PO"
+                            >
+                              <Printer className="w-4 h-4" />
+                            </button>
                             {activeTab === 'payables' && (
                               <button
                                 onClick={() => {
