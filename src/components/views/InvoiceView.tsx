@@ -32,6 +32,7 @@ export function InvoiceView({ invoiceId, onClose }: InvoiceViewProps) {
   const [loading, setLoading] = useState(true);
   const [invoiceData, setInvoiceData] = useState<any>(null);
   const [companyProfile, setCompanyProfile] = useState<CompanyProfile | null>(null);
+  const [printFormat, setPrintFormat] = useState<'thermal' | 'a4'>('thermal');
 
   useEffect(() => {
     loadInvoiceData();
@@ -179,6 +180,30 @@ export function InvoiceView({ invoiceId, onClose }: InvoiceViewProps) {
             </button>
           </div>
 
+          <div className="flex gap-3 mb-4">
+            <button
+              onClick={() => setPrintFormat('thermal')}
+              className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 font-semibold rounded-lg transition ${
+                printFormat === 'thermal'
+                  ? 'bg-blue-600 text-white shadow-lg'
+                  : 'bg-white text-slate-700 border-2 border-slate-300 hover:border-blue-400'
+              }`}
+            >
+              <Receipt className="w-5 h-5" />
+              Thermal (80mm)
+            </button>
+            <button
+              onClick={() => setPrintFormat('a4')}
+              className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 font-semibold rounded-lg transition ${
+                printFormat === 'a4'
+                  ? 'bg-blue-600 text-white shadow-lg'
+                  : 'bg-white text-slate-700 border-2 border-slate-300 hover:border-blue-400'
+              }`}
+            >
+              <FileText className="w-5 h-5" />
+              A4 Format
+            </button>
+          </div>
 
           <button
             onClick={handlePrint}
