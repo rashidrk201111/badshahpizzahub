@@ -37,7 +37,6 @@ export function Inventory() {
       const { data, error } = await supabase
         .from('products')
         .select('*')
-        .neq('inventory_type', 'raw_material')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
