@@ -12,7 +12,6 @@ export function Invoices() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [menuItems, setMenuItems] = useState<any[]>([]);
-  const [itemType, setItemType] = useState<'product' | 'menu'>('product');
   const [companyProfile, setCompanyProfile] = useState<CompanyProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -24,7 +23,7 @@ export function Invoices() {
   const [barcodeInput, setBarcodeInput] = useState('');
   const [skuSearchMode, setSkuSearchMode] = useState(false);
   const [skuInput, setSkuInput] = useState('');
-  const [selectedItems, setSelectedItems] = useState<Array<{ product_id?: string; menu_item_id?: string; quantity: number; custom_price?: number }>>([]);
+  const [selectedItems, setSelectedItems] = useState<Array<{ menu_item_id: string; quantity: number; custom_price?: number }>>([]);
   const [formData, setFormData] = useState({
     customer_id: '',
     due_date: '',
@@ -102,33 +101,19 @@ export function Invoices() {
     }
 
     try {
-      const customer = customers.find(c => c.id === formData.customer_id);
-      if (!customer) throw new Error('Customer not found');
-
-      const customerState = customer.state || companyProfile.state;
+      const customer = formData.customer_id ? customers.find(c => c.id === formData.customer_id) : null;
+      const customerState = customer?.state || companyProfile.state;
       let totalGstAmount = 0;
       let subtotal = 0;
 
       const items = selectedItems.map(item => {
-        let sourceItem, unitPrice, itemName, hsnCode, gstRate;
+        const menuItem = menuItems.find(m => m.id === item.menu_item_id);
+        if (!menuItem) throw new Error('Menu item not found');
 
-        if (item.product_id) {
-          const product = products.find(p => p.id === item.product_id);
-          if (!product) throw new Error('Product not found');
-          unitPrice = item.custom_price !== undefined ? item.custom_price : product.selling_price;
-          itemName = product.name;
-          hsnCode = product.hsn_code || '';
-          gstRate = product.gst_rate || 18;
-        } else if (item.menu_item_id) {
-          const menuItem = menuItems.find(m => m.id === item.menu_item_id);
-          if (!menuItem) throw new Error('Menu item not found');
-          unitPrice = item.custom_price !== undefined ? item.custom_price : menuItem.price;
-          itemName = menuItem.name;
-          hsnCode = menuItem.hsn_code || '';
-          gstRate = menuItem.gst_rate || 5;
-        } else {
-          throw new Error('Item must have either product_id or menu_item_id');
-        }
+        const unitPrice = item.custom_price !== undefined ? item.custom_price : menuItem.price;
+        const itemName = menuItem.name;
+        const hsnCode = menuItem.hsn_code || '';
+        const gstRate = menuItem.gst_rate || 5;
 
         const itemTotal = unitPrice * item.quantity;
         subtotal += itemTotal;
@@ -138,10 +123,10 @@ export function Invoices() {
         totalGstAmount += (gstCalc.cgst_amount + gstCalc.sgst_amount + gstCalc.igst_amount);
 
         return {
-          product_id: item.product_id || null,
-          menu_item_id: item.menu_item_id || null,
-          product_name: item.product_id ? itemName : null,
-          menu_item_name: item.menu_item_id ? itemName : null,
+          product_id: null,
+          menu_item_id: item.menu_item_id,
+          product_name: null,
+          menu_item_name: itemName,
           quantity: item.quantity,
           unit_price: unitPrice,
           total: itemTotal,
@@ -162,7 +147,7 @@ export function Invoices() {
         .insert([
           {
             invoice_number: generateInvoiceNumber(),
-            customer_id: formData.customer_id,
+            customer_id: formData.customer_id || null,
             status: 'draft',
             subtotal,
             tax: formData.include_gst ? totalGstAmount : 0,
@@ -570,19 +555,11 @@ export function Invoices() {
   };
 
   const addItem = () => {
-    if (itemType === 'product') {
-      if (products.length === 0) {
-        alert('Please add products first');
-        return;
-      }
-      setSelectedItems([...selectedItems, { product_id: products[0].id, quantity: 1 }]);
-    } else {
-      if (menuItems.length === 0) {
-        alert('Please add menu items first');
-        return;
-      }
-      setSelectedItems([...selectedItems, { menu_item_id: menuItems[0].id, quantity: 1 }]);
+    if (menuItems.length === 0) {
+      alert('Please add menu items first');
+      return;
     }
+    setSelectedItems([...selectedItems, { menu_item_id: menuItems[0].id, quantity: 1 }]);
   };
 
   const handleCreateCustomer = async (e: React.FormEvent) => {
@@ -843,10 +820,9 @@ export function Invoices() {
                     <select
                       value={formData.customer_id}
                       onChange={(e) => setFormData({ ...formData, customer_id: e.target.value })}
-                      required
                       className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
                     >
-                      <option value="">Select Customer</option>
+                      <option value="">Select Customer (Optional)</option>
                       {customers.map(customer => (
                         <option key={customer.id} value={customer.id}>{customer.name}</option>
                       ))}
@@ -863,12 +839,11 @@ export function Invoices() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Due Date</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Due Date (Optional)</label>
                   <input
                     type="date"
                     value={formData.due_date}
                     onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
-                    required
                     className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
                   />
                 </div>
@@ -1002,116 +977,32 @@ export function Invoices() {
 
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <label className="block text-sm font-medium text-slate-700">Invoice Items</label>
-                  <div className="flex gap-2">
-                    <select
-                      value={itemType}
-                      onChange={(e) => setItemType(e.target.value as 'product' | 'menu')}
-                      className="px-3 py-1 text-sm font-medium border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="product">Products</option>
-                      <option value="menu">Menu Items</option>
-                    </select>
-                    {itemType === 'product' && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setBarcodeScanMode(!barcodeScanMode);
-                            if (!barcodeScanMode) setSkuSearchMode(false);
-                          }}
-                          className={`px-3 py-1 text-sm font-medium rounded-lg transition flex items-center gap-2 ${
-                            barcodeScanMode
-                              ? 'bg-green-600 text-white hover:bg-green-700'
-                              : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
-                          }`}
-                        >
-                          <Scan className="w-4 h-4" />
-                          {barcodeScanMode ? 'Scanning...' : 'Scan'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSkuSearchMode(!skuSearchMode);
-                            if (!skuSearchMode) setBarcodeScanMode(false);
-                          }}
-                          className={`px-3 py-1 text-sm font-medium rounded-lg transition flex items-center gap-2 ${
-                            skuSearchMode
-                              ? 'bg-blue-600 text-white hover:bg-blue-700'
-                              : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
-                          }`}
-                        >
-                          <Search className="w-4 h-4" />
-                          {skuSearchMode ? 'SKU Search' : 'SKU'}
-                        </button>
-                      </>
-                    )}
-                    <button
-                      type="button"
-                      onClick={addItem}
-                      className="px-3 py-1 bg-slate-600 hover:bg-slate-700 text-white text-sm font-medium rounded-lg transition"
-                    >
-                      Add Item
-                    </button>
-                  </div>
+                  <label className="block text-sm font-medium text-slate-700">Menu Items</label>
+                  <button
+                    type="button"
+                    onClick={addItem}
+                    className="px-3 py-1 bg-slate-600 hover:bg-slate-700 text-white text-sm font-medium rounded-lg transition"
+                  >
+                    Add Item
+                  </button>
                 </div>
-                {barcodeScanMode && (
-                  <div className="mb-4 bg-green-50 border-2 border-green-200 rounded-lg p-4">
-                    <label className="block text-sm font-medium text-green-900 mb-2">Scan Barcode</label>
-                    <input
-                      type="text"
-                      value={barcodeInput}
-                      onChange={(e) => setBarcodeInput(e.target.value)}
-                      onKeyDown={handleBarcodeInput}
-                      placeholder="Scan or type barcode and press Enter"
-                      autoFocus
-                      className="w-full px-4 py-3 border-2 border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none text-lg"
-                    />
-                    <p className="text-xs text-green-700 mt-2">Place cursor here and scan product barcode</p>
-                  </div>
-                )}
-                {skuSearchMode && (
-                  <div className="mb-4 bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
-                    <label className="block text-sm font-medium text-blue-900 mb-2">Search by SKU</label>
-                    <input
-                      type="text"
-                      value={skuInput}
-                      onChange={(e) => setSkuInput(e.target.value)}
-                      onKeyDown={handleSkuInput}
-                      placeholder="Type SKU and press Enter"
-                      autoFocus
-                      className="w-full px-4 py-3 border-2 border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-lg"
-                    />
-                    <p className="text-xs text-blue-700 mt-2">Enter product SKU to quickly add to invoice</p>
-                  </div>
-                )}
                 <div className="space-y-3">
                   {selectedItems.map((item, index) => {
-                    const isProduct = !!item.product_id;
-                    const product = isProduct ? products.find(p => p.id === item.product_id) : null;
-                    const menuItem = !isProduct ? menuItems.find(m => m.id === item.menu_item_id) : null;
-                    const displayPrice = item.custom_price !== undefined ? item.custom_price : (product?.selling_price || menuItem?.price || 0);
+                    const menuItem = menuItems.find(m => m.id === item.menu_item_id);
+                    const displayPrice = item.custom_price !== undefined ? item.custom_price : (menuItem?.price || 0);
                     return (
                       <div key={index} className="bg-slate-50 p-4 rounded-lg border border-slate-200">
                         <div className="flex gap-3 items-start mb-3">
                           <select
-                            value={isProduct ? item.product_id : item.menu_item_id}
-                            onChange={(e) => updateItem(index, isProduct ? 'product_id' : 'menu_item_id', e.target.value)}
+                            value={item.menu_item_id}
+                            onChange={(e) => updateItem(index, 'menu_item_id', e.target.value)}
                             className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white"
                           >
-                            {isProduct ? (
-                              products.map(product => (
-                                <option key={product.id} value={product.id}>
-                                  {product.name} - {formatINR(product.selling_price)} (GST: {product.gst_rate}%)
-                                </option>
-                              ))
-                            ) : (
-                              menuItems.map(menuItem => (
-                                <option key={menuItem.id} value={menuItem.id}>
-                                  {menuItem.name} - {formatINR(menuItem.price)} (GST: {menuItem.gst_rate}%)
-                                </option>
-                              ))
-                            )}
+                            {menuItems.map(menuItem => (
+                              <option key={menuItem.id} value={menuItem.id}>
+                                {menuItem.name} - {formatINR(menuItem.price)} (GST: {menuItem.gst_rate}%)
+                              </option>
+                            ))}
                           </select>
                           <input
                             type="number"
@@ -1137,7 +1028,7 @@ export function Invoices() {
                             step="0.01"
                             value={item.custom_price !== undefined ? item.custom_price : ''}
                             onChange={(e) => updateItem(index, 'custom_price', e.target.value ? parseFloat(e.target.value) : undefined)}
-                            placeholder={`Default: ${formatINR(product?.selling_price || menuItem?.price || 0)}`}
+                            placeholder={`Default: ${formatINR(menuItem?.price || 0)}`}
                             className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white"
                           />
                           <span className="text-sm font-semibold text-slate-900 whitespace-nowrap min-w-[100px] text-right">
