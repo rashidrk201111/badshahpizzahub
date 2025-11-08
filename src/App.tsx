@@ -2,7 +2,6 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { LoginForm } from './components/auth/LoginForm';
 import { DashboardLayout } from './components/layout/DashboardLayout';
 import { Dashboard } from './components/views/Dashboard';
-import { Billing } from './components/views/Billing';
 import { Inventory } from './components/views/Inventory';
 import Menu from './components/views/Menu';
 import { Invoices } from './components/views/Invoices';
@@ -41,8 +40,6 @@ function AppContent() {
         switch (currentView) {
           case 'dashboard':
             return <Dashboard setCurrentView={setCurrentView} />;
-          case 'billing':
-            return <Billing />;
           case 'inventory':
             return <Inventory />;
           case 'menu':

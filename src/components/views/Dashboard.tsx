@@ -10,6 +10,9 @@ interface Stats {
   totalRevenue: number;
   pendingInvoices: number;
   totalCustomers: number;
+  openingInventory: number;
+  todayConsumption: number;
+  closingInventory: number;
 }
 
 interface DashboardProps {
@@ -24,6 +27,9 @@ export function Dashboard({ setCurrentView }: DashboardProps) {
     totalRevenue: 0,
     pendingInvoices: 0,
     totalCustomers: 0,
+    openingInventory: 0,
+    todayConsumption: 0,
+    closingInventory: 0,
   });
   const [loading, setLoading] = useState(true);
 
@@ -33,10 +39,18 @@ export function Dashboard({ setCurrentView }: DashboardProps) {
 
   const loadStats = async () => {
     try {
-      const [products, invoices, customers] = await Promise.all([
-        supabase.from('products').select('quantity, reorder_level'),
+      const today = new Date();
+      const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString();
+      const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1).toISOString();
+
+      const [products, invoices, customers, todayMovements] = await Promise.all([
+        supabase.from('products').select('quantity, reorder_level, cost_price'),
         supabase.from('invoices').select('status, total'),
         supabase.from('customers').select('id', { count: 'exact', head: true }),
+        supabase.from('inventory_movements')
+          .select('type, quantity, product_id, products(cost_price)')
+          .gte('created_at', startOfDay)
+          .lt('created_at', endOfDay),
       ]);
 
       const totalProducts = products.data?.length || 0;
@@ -48,6 +62,20 @@ export function Dashboard({ setCurrentView }: DashboardProps) {
 
       const totalCustomers = customers.count || 0;
 
+      const closingInventory = products.data?.reduce((sum, p) => sum + (p.quantity * (p.cost_price || 0)), 0) || 0;
+
+      let todayConsumption = 0;
+      if (todayMovements.data) {
+        for (const movement of todayMovements.data) {
+          if (movement.type === 'out') {
+            const costPrice = (movement.products as any)?.cost_price || 0;
+            todayConsumption += movement.quantity * costPrice;
+          }
+        }
+      }
+
+      const openingInventory = closingInventory + todayConsumption;
+
       setStats({
         totalProducts,
         lowStockProducts,
@@ -55,6 +83,9 @@ export function Dashboard({ setCurrentView }: DashboardProps) {
         totalRevenue,
         pendingInvoices,
         totalCustomers,
+        openingInventory,
+        todayConsumption,
+        closingInventory,
       });
     } catch (error) {
       console.error('Error loading stats:', error);
@@ -65,18 +96,38 @@ export function Dashboard({ setCurrentView }: DashboardProps) {
 
   const statCards = [
     {
+      title: 'Opening Inventory',
+      value: formatINR(stats.openingInventory),
+      icon: Package,
+      color: 'bg-blue-500',
+      subtitle: 'Start of day',
+    },
+    {
+      title: "Today's Consumption",
+      value: formatINR(stats.todayConsumption),
+      icon: TrendingDown,
+      color: 'bg-red-500',
+      subtitle: 'Items consumed today',
+    },
+    {
+      title: 'Closing Inventory',
+      value: formatINR(stats.closingInventory),
+      icon: Package,
+      color: 'bg-green-500',
+      subtitle: 'Current stock value',
+    },
+    {
       title: 'Total Revenue',
       value: formatINR(stats.totalRevenue),
       icon: DollarSign,
-      color: 'bg-green-500',
-      trend: '+12%',
-      trendUp: true,
+      color: 'bg-emerald-500',
+      subtitle: 'Paid invoices',
     },
     {
       title: 'Total Products',
       value: stats.totalProducts.toString(),
       icon: Package,
-      color: 'bg-blue-500',
+      color: 'bg-indigo-500',
       subtitle: `${stats.lowStockProducts} low stock`,
     },
     {
@@ -91,8 +142,6 @@ export function Dashboard({ setCurrentView }: DashboardProps) {
       value: stats.totalCustomers.toString(),
       icon: Users,
       color: 'bg-purple-500',
-      trend: '+8%',
-      trendUp: true,
     },
   ];
 
@@ -106,7 +155,7 @@ export function Dashboard({ setCurrentView }: DashboardProps) {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {statCards.map((card) => {
           const Icon = card.icon;
           return (
