@@ -62,7 +62,7 @@ export function Invoices() {
           .order('created_at', { ascending: false }),
         supabase.from('customers').select('*').order('name'),
         supabase.from('products').select('*').order('name'),
-        supabase.from('menu_items').select('*, category:menu_categories(name)').eq('is_active', true).eq('is_available', true).order('name'),
+        supabase.from('menu_items').select('*').eq('is_active', true).eq('is_available', true).order('name'),
         supabase.from('company_profile').select('*').eq('user_id', user?.id || '').maybeSingle(),
       ]);
 
@@ -1003,7 +1003,7 @@ export function Invoices() {
                             ) : (
                               menuItems.map(menuItem => (
                                 <option key={menuItem.id} value={menuItem.id}>
-                                  {menuItem.name} {menuItem.category?.name ? `(${menuItem.category.name})` : ''} - {formatINR(menuItem.price)}
+                                  {menuItem.name} - {formatINR(menuItem.price)}
                                 </option>
                               ))
                             )}
