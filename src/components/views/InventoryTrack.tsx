@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Search, Calendar, TrendingUp, TrendingDown, Package, FileText, ShoppingCart } from 'lucide-react';
+import { Search, Calendar, TrendingUp, TrendingDown, Package, FileText, ShoppingCart, Minus } from 'lucide-react';
 
 interface Product {
   id: string;
@@ -113,6 +113,8 @@ export function InventoryTrack() {
         return <ShoppingCart className="w-4 h-4 text-green-600" />;
       case 'sale':
         return <FileText className="w-4 h-4 text-blue-600" />;
+      case 'consumption':
+        return <Minus className="w-4 h-4 text-red-600" />;
       case 'adjustment':
         return <Package className="w-4 h-4 text-orange-600" />;
       default:
@@ -124,6 +126,7 @@ export function InventoryTrack() {
     const badges: { [key: string]: string } = {
       purchase: 'bg-green-100 text-green-800',
       sale: 'bg-blue-100 text-blue-800',
+      consumption: 'bg-red-100 text-red-800',
       adjustment: 'bg-orange-100 text-orange-800',
       opening_stock: 'bg-slate-100 text-slate-800',
       daily_snapshot: 'bg-purple-100 text-purple-800'
@@ -240,7 +243,7 @@ export function InventoryTrack() {
                     <th className="px-4 py-3 text-left text-sm font-semibold text-slate-600">Date</th>
                     <th className="px-4 py-3 text-right text-sm font-semibold text-slate-600">Opening Stock</th>
                     <th className="px-4 py-3 text-right text-sm font-semibold text-slate-600">Purchases</th>
-                    <th className="px-4 py-3 text-right text-sm font-semibold text-slate-600">Sales</th>
+                    <th className="px-4 py-3 text-right text-sm font-semibold text-slate-600">Sales / Consumption</th>
                     <th className="px-4 py-3 text-right text-sm font-semibold text-slate-600">Adjustments</th>
                     <th className="px-4 py-3 text-right text-sm font-semibold text-slate-600">Max Stock</th>
                     <th className="px-4 py-3 text-right text-sm font-semibold text-slate-600">Closing Stock</th>
