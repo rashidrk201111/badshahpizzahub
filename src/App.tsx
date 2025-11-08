@@ -3,6 +3,7 @@ import { LoginForm } from './components/auth/LoginForm';
 import { DashboardLayout } from './components/layout/DashboardLayout';
 import { Dashboard } from './components/views/Dashboard';
 import { Inventory } from './components/views/Inventory';
+import { InventoryTrack } from './components/views/InventoryTrack';
 import Menu from './components/views/Menu';
 import { KOT } from './components/views/KOT';
 import { Invoices } from './components/views/Invoices';
@@ -43,6 +44,8 @@ function AppContent() {
             return <Dashboard setCurrentView={setCurrentView} />;
           case 'inventory':
             return <Inventory />;
+          case 'inventory-track':
+            return <InventoryTrack />;
           case 'menu':
             return <Menu />;
           case 'kot':
