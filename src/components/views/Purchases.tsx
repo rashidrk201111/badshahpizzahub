@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Plus, Search, Trash2, Receipt, Clock, CheckCircle, AlertCircle, IndianRupee } from 'lucide-react';
+import { Plus, Search, Trash2, Receipt, Clock, CheckCircle, AlertCircle, IndianRupee, ChevronDown, ChevronRight } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatINR } from '../../lib/currency';
 import { calculateItemGST } from '../../lib/gst';
@@ -55,6 +55,7 @@ export function Purchases() {
   const [selectedPurchase, setSelectedPurchase] = useState<Purchase | null>(null);
   const [companyState, setCompanyState] = useState<string>('');
   const [selectedItems, setSelectedItems] = useState<PurchaseItem[]>([]);
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [formData, setFormData] = useState({
     supplier_id: '',
     order_date: new Date().toISOString().split('T')[0],
@@ -89,7 +90,8 @@ export function Purchases() {
           .from('purchases')
           .select(`
             *,
-            supplier:suppliers(name)
+            supplier:suppliers(name),
+            items:purchase_items(*)
           `)
           .order('created_at', { ascending: false }),
         supabase
@@ -469,6 +471,16 @@ export function Purchases() {
     }
   };
 
+  const toggleRow = (purchaseId: string) => {
+    const newExpanded = new Set(expandedRows);
+    if (newExpanded.has(purchaseId)) {
+      newExpanded.delete(purchaseId);
+    } else {
+      newExpanded.add(purchaseId);
+    }
+    setExpandedRows(newExpanded);
+  };
+
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this purchase?')) return;
 
@@ -720,12 +732,24 @@ export function Purchases() {
                 <tbody className="divide-y divide-slate-200">
                   {filteredPurchases.map((purchase) => {
                     const balance = purchase.total - purchase.amount_paid;
+                    const isExpanded = expandedRows.has(purchase.id);
 
                     return (
-                      <tr key={purchase.id} className="hover:bg-slate-50 transition">
-                        <td className="px-4 py-3 text-sm font-medium text-slate-900">
-                          {purchase.purchase_number}
-                        </td>
+                      <>
+                        <tr key={purchase.id} className="hover:bg-slate-50 transition">
+                          <td className="px-4 py-3 text-sm font-medium text-slate-900">
+                            <button
+                              onClick={() => toggleRow(purchase.id)}
+                              className="flex items-center gap-2 hover:text-blue-600 transition"
+                            >
+                              {isExpanded ? (
+                                <ChevronDown className="w-4 h-4" />
+                              ) : (
+                                <ChevronRight className="w-4 h-4" />
+                              )}
+                              {purchase.purchase_number}
+                            </button>
+                          </td>
                         <td className="px-4 py-3 text-sm text-slate-900">
                           {purchase.supplier?.name}
                         </td>
@@ -793,6 +817,44 @@ export function Purchases() {
                           </div>
                         </td>
                       </tr>
+                      {isExpanded && (purchase as any).items && (
+                        <tr>
+                          <td colSpan={activeTab === 'payables' ? 8 : 6} className="px-4 py-0 bg-slate-50">
+                            <div className="py-3">
+                              <h4 className="text-sm font-semibold text-slate-700 mb-2">Purchase Items</h4>
+                              <table className="w-full text-sm">
+                                <thead>
+                                  <tr className="border-b border-slate-300">
+                                    <th className="text-left py-2 px-2 text-xs font-medium text-slate-600">Product</th>
+                                    <th className="text-center py-2 px-2 text-xs font-medium text-slate-600">SKU</th>
+                                    <th className="text-center py-2 px-2 text-xs font-medium text-slate-600">Quantity</th>
+                                    <th className="text-right py-2 px-2 text-xs font-medium text-slate-600">Unit Price</th>
+                                    <th className="text-center py-2 px-2 text-xs font-medium text-slate-600">GST</th>
+                                    <th className="text-right py-2 px-2 text-xs font-medium text-slate-600">Total</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {((purchase as any).items || []).map((item: any, idx: number) => (
+                                    <tr key={idx} className="border-b border-slate-200">
+                                      <td className="py-2 px-2 text-slate-900">{item.product_name}</td>
+                                      <td className="py-2 px-2 text-center text-slate-600">{item.sku}</td>
+                                      <td className="py-2 px-2 text-center text-slate-900">
+                                        {item.quantity} {item.unit}
+                                      </td>
+                                      <td className="py-2 px-2 text-right text-slate-900">{formatINR(item.unit_price)}</td>
+                                      <td className="py-2 px-2 text-center text-slate-600">{item.gst_rate}%</td>
+                                      <td className="py-2 px-2 text-right font-medium text-slate-900">
+                                        {formatINR(item.total)}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                      </>
                     );
                   })}
                 </tbody>
