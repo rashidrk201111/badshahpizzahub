@@ -16,6 +16,7 @@ import {
   Truck,
   User,
   UtensilsCrossed,
+  CreditCard,
 } from 'lucide-react';
 
 interface DashboardLayoutProps {
@@ -31,6 +32,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { name: 'Dashboard', icon: LayoutDashboard, path: 'dashboard', roles: ['admin', 'sales_person', 'inventory_person', 'purchase_person'] },
+  { name: 'Billing', icon: CreditCard, path: 'billing', roles: ['admin', 'sales_person'] },
   { name: 'Inventory', icon: Package, path: 'inventory', roles: ['admin', 'inventory_person'] },
   { name: 'Menu', icon: UtensilsCrossed, path: 'menu', roles: ['admin', 'inventory_person'] },
   { name: 'Invoices', icon: FileText, path: 'invoices', roles: ['admin', 'sales_person'] },
