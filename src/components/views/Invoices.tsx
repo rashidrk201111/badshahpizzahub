@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase, Invoice, Customer, Product, InvoiceItem, CompanyProfile } from '../../lib/supabase';
-import { Plus, Search, Eye, CreditCard as Edit, Trash2, Printer, ChevronDown, UserPlus, Scan } from 'lucide-react';
+import { Plus, Search, Eye, CreditCard as Edit, Trash2, Printer, ChevronDown, UserPlus } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { InvoiceView } from './InvoiceView';
 import { formatINR } from '../../lib/currency';
@@ -19,10 +19,6 @@ export function Invoices() {
   const [viewInvoiceId, setViewInvoiceId] = useState<string | null>(null);
   const [printDropdownOpen, setPrintDropdownOpen] = useState<string | null>(null);
   const [showCustomerForm, setShowCustomerForm] = useState(false);
-  const [barcodeScanMode, setBarcodeScanMode] = useState(false);
-  const [barcodeInput, setBarcodeInput] = useState('');
-  const [skuSearchMode, setSkuSearchMode] = useState(false);
-  const [skuInput, setSkuInput] = useState('');
   const [selectedItems, setSelectedItems] = useState<Array<{ menu_item_id: string; quantity: number; custom_price?: number }>>([]);
   const [formData, setFormData] = useState({
     customer_id: '',
@@ -605,47 +601,6 @@ export function Invoices() {
     }
   };
 
-  const handleBarcodeInput = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      const product = products.find(p => p.barcode === barcodeInput.trim());
-      if (product) {
-        const existingIndex = selectedItems.findIndex(item => item.product_id === product.id);
-        if (existingIndex >= 0) {
-          const updated = [...selectedItems];
-          updated[existingIndex].quantity += 1;
-          setSelectedItems(updated);
-        } else {
-          setSelectedItems([...selectedItems, { product_id: product.id, quantity: 1 }]);
-        }
-        setBarcodeInput('');
-      } else {
-        alert('Product not found with barcode: ' + barcodeInput);
-        setBarcodeInput('');
-      }
-    }
-  };
-
-  const handleSkuInput = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      const product = products.find(p => p.sku?.toLowerCase() === skuInput.trim().toLowerCase());
-      if (product) {
-        const existingIndex = selectedItems.findIndex(item => item.product_id === product.id);
-        if (existingIndex >= 0) {
-          const updated = [...selectedItems];
-          updated[existingIndex].quantity += 1;
-          setSelectedItems(updated);
-        } else {
-          setSelectedItems([...selectedItems, { product_id: product.id, quantity: 1 }]);
-        }
-        setSkuInput('');
-      } else {
-        alert('Product not found with SKU: ' + skuInput);
-        setSkuInput('');
-      }
-    }
-  };
 
   const removeItem = (index: number) => {
     setSelectedItems(selectedItems.filter((_, i) => i !== index));
@@ -988,7 +943,7 @@ export function Invoices() {
                     onClick={addItem}
                     className="px-3 py-1 bg-slate-600 hover:bg-slate-700 text-white text-sm font-medium rounded-lg transition"
                   >
-                    Add Item
+                    Add Menu Item
                   </button>
                 </div>
                 <div className="space-y-3">
@@ -1072,10 +1027,6 @@ export function Invoices() {
                     setFormData({ customer_id: '', due_date: '', tax_rate: '10', include_gst: true });
                     setSelectedItems([]);
                     setShowCustomerForm(false);
-                    setBarcodeScanMode(false);
-                    setBarcodeInput('');
-                    setSkuSearchMode(false);
-                    setSkuInput('');
                     setNewCustomerData({ name: '', email: '', phone: '', address: '', state: '', gstin: '' });
                   }}
                   className="flex-1 px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium rounded-lg transition"
