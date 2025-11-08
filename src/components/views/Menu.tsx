@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Plus, Edit2, Trash2, Save, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, Edit2, Trash2, Save, X, ChevronDown, ChevronUp, Receipt } from 'lucide-react';
+import { formatINR } from '../../lib/currency';
 
 interface MenuCategory {
   id: string;
@@ -27,6 +28,12 @@ interface MenuItem {
   display_order: number;
 }
 
+interface BillItem {
+  menu_item_id: string;
+  quantity: number;
+  unit_price: number;
+}
+
 export default function Menu() {
   const [categories, setCategories] = useState<MenuCategory[]>([]);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
@@ -36,6 +43,15 @@ export default function Menu() {
   const [editingCategory, setEditingCategory] = useState<MenuCategory | null>(null);
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+  const [showBillingSection, setShowBillingSection] = useState(false);
+  const [billItems, setBillItems] = useState<BillItem[]>([]);
+  const [billForm, setBillForm] = useState({
+    customer_name: '',
+    customer_phone: '',
+    payment_method: 'cash',
+    payment_status: 'paid',
+    notes: '',
+  });
 
   const [categoryForm, setCategoryForm] = useState({
     name: '',
@@ -213,6 +229,103 @@ export default function Menu() {
 
   const getItemsByCategory = (categoryId: string) => {
     return menuItems.filter(item => item.category_id === categoryId);
+  };
+
+  const addItemToBill = (menuItem: MenuItem) => {
+    const existingIndex = billItems.findIndex(item => item.menu_item_id === menuItem.id);
+    if (existingIndex >= 0) {
+      const updated = [...billItems];
+      updated[existingIndex].quantity += 1;
+      setBillItems(updated);
+    } else {
+      setBillItems([...billItems, { menu_item_id: menuItem.id, quantity: 1, unit_price: menuItem.price }]);
+    }
+  };
+
+  const updateBillItem = (index: number, field: string, value: any) => {
+    const updated = [...billItems];
+    updated[index] = { ...updated[index], [field]: value };
+    setBillItems(updated);
+  };
+
+  const removeBillItem = (index: number) => {
+    setBillItems(billItems.filter((_, i) => i !== index));
+  };
+
+  const calculateBillTotals = () => {
+    const subtotal = billItems.reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
+    const taxAmount = subtotal * 0.05;
+    const total = subtotal + taxAmount;
+    return { subtotal, taxAmount, total };
+  };
+
+  const generateBillNumber = () => {
+    const date = new Date();
+    const timestamp = date.getTime().toString().slice(-6);
+    return `BILL-${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}-${timestamp}`;
+  };
+
+  const handleCreateBill = async () => {
+    if (billItems.length === 0) {
+      alert('Please add at least one item to the bill');
+      return;
+    }
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { subtotal, taxAmount, total } = calculateBillTotals();
+      const billNumber = generateBillNumber();
+
+      const { data: bill, error: billError } = await supabase
+        .from('bills')
+        .insert({
+          user_id: user.id,
+          bill_number: billNumber,
+          customer_name: billForm.customer_name,
+          customer_phone: billForm.customer_phone,
+          subtotal,
+          tax_amount: taxAmount,
+          total_amount: total,
+          payment_status: billForm.payment_status,
+          payment_method: billForm.payment_method,
+          notes: billForm.notes,
+        })
+        .select()
+        .single();
+
+      if (billError) throw billError;
+
+      const billItemsData = billItems.map((item) => {
+        const menuItem = menuItems.find((m) => m.id === item.menu_item_id);
+        return {
+          bill_id: bill.id,
+          menu_item_id: item.menu_item_id,
+          menu_item_name: menuItem?.name || '',
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          total: item.quantity * item.unit_price,
+        };
+      });
+
+      const { error: itemsError } = await supabase.from('bill_items').insert(billItemsData);
+
+      if (itemsError) throw itemsError;
+
+      alert('Bill created successfully!');
+      setBillItems([]);
+      setBillForm({
+        customer_name: '',
+        customer_phone: '',
+        payment_method: 'cash',
+        payment_status: 'paid',
+        notes: '',
+      });
+    } catch (error) {
+      console.error('Error creating bill:', error);
+      alert('Error creating bill');
+    }
   };
 
   if (loading) {
@@ -534,6 +647,13 @@ export default function Menu() {
                             </div>
                             <div className="flex gap-1">
                               <button
+                                onClick={() => addItemToBill(item)}
+                                className="text-green-600 hover:text-green-800 p-1"
+                                title="Add to Bill"
+                              >
+                                <Plus className="h-4 w-4" />
+                              </button>
+                              <button
                                 onClick={() => editItem(item)}
                                 className="text-blue-600 hover:text-blue-800 p-1"
                               >
@@ -571,6 +691,129 @@ export default function Menu() {
           );
         })}
       </div>
+
+      {billItems.length > 0 && (
+        <div className="fixed bottom-0 right-0 w-96 bg-white shadow-2xl rounded-t-lg border-2 border-blue-500 max-h-[80vh] overflow-y-auto z-50">
+          <div className="sticky top-0 bg-blue-600 text-white p-4 flex justify-between items-center">
+            <div className="flex items-center gap-2">
+              <Receipt className="h-5 w-5" />
+              <h3 className="font-bold text-lg">Current Bill</h3>
+            </div>
+            <button
+              onClick={() => setBillItems([])}
+              className="text-white hover:text-red-200"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          <div className="p-4 space-y-3">
+            {billItems.map((item, index) => {
+              const menuItem = menuItems.find(m => m.id === item.menu_item_id);
+              return (
+                <div key={index} className="bg-slate-50 p-3 rounded-lg border">
+                  <div className="flex justify-between items-start mb-2">
+                    <span className="font-medium text-sm">{menuItem?.name}</span>
+                    <button
+                      onClick={() => removeBillItem(index)}
+                      className="text-red-600 hover:text-red-800"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <div className="flex gap-2 items-center">
+                    <input
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={item.quantity}
+                      onChange={(e) => updateBillItem(index, 'quantity', parseFloat(e.target.value))}
+                      className="w-16 px-2 py-1 border rounded text-sm"
+                    />
+                    <span className="text-xs text-gray-600">×</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={item.unit_price}
+                      onChange={(e) => updateBillItem(index, 'unit_price', parseFloat(e.target.value))}
+                      className="w-20 px-2 py-1 border rounded text-sm"
+                    />
+                    <span className="text-xs text-gray-600">=</span>
+                    <span className="font-bold text-sm ml-auto">
+                      {formatINR(item.quantity * item.unit_price)}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+
+            <div className="border-t pt-3 space-y-2">
+              <div className="flex justify-between text-sm">
+                <span>Subtotal:</span>
+                <span className="font-medium">{formatINR(calculateBillTotals().subtotal)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span>Tax (5%):</span>
+                <span className="font-medium">{formatINR(calculateBillTotals().taxAmount)}</span>
+              </div>
+              <div className="flex justify-between text-lg font-bold border-t pt-2">
+                <span>Total:</span>
+                <span className="text-blue-600">{formatINR(calculateBillTotals().total)}</span>
+              </div>
+            </div>
+
+            <div className="space-y-3 border-t pt-3">
+              <input
+                type="text"
+                placeholder="Customer Name (Optional)"
+                value={billForm.customer_name}
+                onChange={(e) => setBillForm({ ...billForm, customer_name: e.target.value })}
+                className="w-full px-3 py-2 border rounded text-sm"
+              />
+              <input
+                type="tel"
+                placeholder="Phone (Optional)"
+                value={billForm.customer_phone}
+                onChange={(e) => setBillForm({ ...billForm, customer_phone: e.target.value })}
+                className="w-full px-3 py-2 border rounded text-sm"
+              />
+              <select
+                value={billForm.payment_method}
+                onChange={(e) => setBillForm({ ...billForm, payment_method: e.target.value })}
+                className="w-full px-3 py-2 border rounded text-sm"
+              >
+                <option value="cash">Cash</option>
+                <option value="card">Card</option>
+                <option value="upi">UPI</option>
+                <option value="other">Other</option>
+              </select>
+              <select
+                value={billForm.payment_status}
+                onChange={(e) => setBillForm({ ...billForm, payment_status: e.target.value })}
+                className="w-full px-3 py-2 border rounded text-sm"
+              >
+                <option value="paid">Paid</option>
+                <option value="pending">Pending</option>
+              </select>
+              <textarea
+                placeholder="Notes (Optional)"
+                value={billForm.notes}
+                onChange={(e) => setBillForm({ ...billForm, notes: e.target.value })}
+                rows={2}
+                className="w-full px-3 py-2 border rounded text-sm"
+              />
+            </div>
+
+            <button
+              onClick={handleCreateBill}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition"
+            >
+              Create Bill
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
