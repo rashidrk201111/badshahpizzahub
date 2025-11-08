@@ -22,7 +22,6 @@ export function Invoices() {
   const [selectedItems, setSelectedItems] = useState<Array<{ menu_item_id: string; quantity: number; custom_price?: number }>>([]);
   const [formData, setFormData] = useState({
     customer_id: '',
-    due_date: '',
     tax_rate: '10',
     include_gst: true,
   });
@@ -158,7 +157,6 @@ export function Invoices() {
             total: totalWithGst,
             is_interstate: isInterstate,
             place_of_supply: customerState,
-            due_date: formData.due_date,
             created_by: profile?.id,
           },
         ])
@@ -179,7 +177,7 @@ export function Invoices() {
       if (itemsError) throw itemsError;
 
       setShowModal(false);
-      setFormData({ customer_id: '', due_date: '', tax_rate: '10', include_gst: true });
+      setFormData({ customer_id: '', tax_rate: '10', include_gst: true });
       setSelectedItems([]);
       loadData();
     } catch (error) {
@@ -364,10 +362,6 @@ export function Invoices() {
                 <div>
                   <div class="info-label">Invoice Date</div>
                   <div class="info-value">${new Date(invoice.created_at).toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' })}</div>
-                </div>
-                <div>
-                  <div class="info-label">Due Date</div>
-                  <div class="info-value">${new Date(invoice.due_date).toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' })}</div>
                 </div>
               </div>
 
@@ -661,7 +655,6 @@ export function Invoices() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-600 uppercase tracking-wider">Invoice #</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-600 uppercase tracking-wider">Customer</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-600 uppercase tracking-wider">Date</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-600 uppercase tracking-wider">Due Date</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-600 uppercase tracking-wider">Amount</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-600 uppercase tracking-wider">Status</th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-slate-600 uppercase tracking-wider">Actions</th>
@@ -674,9 +667,6 @@ export function Invoices() {
                   <td className="px-6 py-4 text-sm text-slate-900">{invoice.customer?.name}</td>
                   <td className="px-6 py-4 text-sm text-slate-600">
                     {new Date(invoice.created_at).toLocaleDateString()}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-slate-600">
-                    {new Date(invoice.due_date).toLocaleDateString()}
                   </td>
                   <td className="px-6 py-4 text-sm font-medium text-slate-900">{formatINR(invoice.total)}</td>
                   <td className="px-6 py-4">
@@ -797,15 +787,6 @@ export function Invoices() {
                       New
                     </button>
                   </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Due Date (Optional)</label>
-                  <input
-                    type="date"
-                    value={formData.due_date}
-                    onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                  />
                 </div>
               </div>
 
@@ -1024,7 +1005,7 @@ export function Invoices() {
                   type="button"
                   onClick={() => {
                     setShowModal(false);
-                    setFormData({ customer_id: '', due_date: '', tax_rate: '10', include_gst: true });
+                    setFormData({ customer_id: '', tax_rate: '10', include_gst: true });
                     setSelectedItems([]);
                     setShowCustomerForm(false);
                     setNewCustomerData({ name: '', email: '', phone: '', address: '', state: '', gstin: '' });
